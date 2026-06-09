@@ -301,9 +301,16 @@
     <button class="key rounded py-4 text-2xl text-amber" data-k="enter">↵</button>
   </div>
 
-  <button id="end-session" class="text-muted text-xs tracking-widest uppercase hover:text-paper">
-    End session
-  </button>
+  <!-- Skip + End session row -->
+  <div class="flex gap-6 items-center">
+    <button id="skip-question" class="text-muted text-xs tracking-widest uppercase hover:text-amber">
+      Skip → reveal
+    </button>
+    <span class="text-line">·</span>
+    <button id="end-session" class="text-muted text-xs tracking-widest uppercase hover:text-paper">
+      End session
+    </button>
+  </div>
 </section>
 
 
@@ -411,6 +418,11 @@
     pqPausedRemaining: null,
     timer: null,
     feedbackLock: false,
+    // True once the user has gotten the current question wrong at least
+    // once. Used so that when they eventually answer correctly, we still
+    // record the question as a miss (honest stats), but they get the
+    // satisfaction of solving it before moving on.
+    currentWrongAlready: false,
   };
 
   // ============================================================
@@ -643,6 +655,7 @@
     state.streak    = 0;
     state.bestStreak = 0;
     state.feedbackLock = false;
+    state.currentWrongAlready = false;
 
     const now = Date.now();
     state.startedAt = now;
@@ -657,6 +670,7 @@
   function nextQuestion() {
     state.current = generateQuestion();
     state.inputBuf = '';
+    state.currentWrongAlready = false;   // fresh question, fresh start
     renderInput();
 
     const q = state.current;
@@ -759,34 +773,108 @@
     if (state.inputBuf !== '' && +state.inputBuf === state.current.answer) submit();
   }
 
-  function submit()       { recordAnswer(+state.inputBuf, +state.inputBuf === state.current.answer); }
-  function handleTimeout(){ recordAnswer(null, false); }
+  function submit() {
+    const given = +state.inputBuf;
+    const isMatch = given === state.current.answer;
+    if (isMatch) {
+      handleCorrect();
+    } else {
+      handleWrongAttempt(given);
+    }
+  }
 
-  function recordAnswer(given, correct) {
+  // Per-question timer expired → forced wrong, record + advance.
+  // (Timer is the only forced-advance path so the per-Q timer still
+  // has teeth when enabled.)
+  function handleTimeout() {
+    pushQuestionRecord(null, false);
+    showWrongFeedback(/*reveal*/ true);
+    setTimeout(afterFeedback, 850);
+  }
+
+  // User pressed "Skip → reveal" — gives up, reveal correct answer, advance.
+  function handleSkip() {
+    if (state.feedbackLock) return;
+    if (!state.current) return;
+    // If they already had wrong attempts logged for this question, the
+    // record was added on first miss. Otherwise add a "no answer" record now.
+    if (!state.currentWrongAlready) {
+      pushQuestionRecord(null, false);
+    }
+    showWrongFeedback(/*reveal*/ true);
+    setTimeout(afterFeedback, 850);
+  }
+
+  // Correct submission. If the user had already missed this question
+  // (currentWrongAlready), we DO NOT add a new record — the wrong record
+  // was already pushed on the first miss. Stats stay honest.
+  function handleCorrect() {
     state.feedbackLock = true;
-    if (state.perQuestionSec > 0) state.pqPausedRemaining = Math.max(0, state.pqEndsAt - Date.now());
-    state.questions.push({ ...state.current, given, correct });
 
-    const card = document.getElementById('question-card');
-    const reveal = document.getElementById('answer-reveal');
-
-    if (correct) {
+    if (!state.currentWrongAlready) {
+      // Clean correct on first try → counts as correct
       state.correct++;
       state.streak++;
       if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+      pushQuestionRecord(+state.inputBuf, true);
       document.getElementById('hud-correct').textContent = state.correct;
       document.getElementById('hud-streak').textContent  = state.streak;
-      retriggerAnimation(card, 'pulse-correct');
-      beep(880, 0.08); buzz(15);
-      setTimeout(afterFeedback, 200);
-    } else {
+    }
+    // (If currentWrongAlready, we already recorded the miss earlier;
+    //  no stat changes here. The green pulse below is just for the user's
+    //  satisfaction of finally getting it.)
+
+    const card = document.getElementById('question-card');
+    retriggerAnimation(card, 'pulse-correct');
+    beep(880, 0.08);
+    buzz(15);
+
+    setTimeout(afterFeedback, 200);
+  }
+
+  // Wrong attempt — DO NOT advance. Shake, clear input, let them try again.
+  // Only the FIRST miss on a question is recorded (so accuracy reflects
+  // first-attempt correctness, which is what matters for training).
+  function handleWrongAttempt(given) {
+    if (!state.currentWrongAlready) {
+      state.currentWrongAlready = true;
       state.streak = 0;
       document.getElementById('hud-streak').textContent = 0;
-      retriggerAnimation(card, 'pulse-wrong');
-      reveal.style.opacity = '1';
-      beep(220, 0.18); buzz([30, 40, 30]);
-      setTimeout(afterFeedback, 850);
+      pushQuestionRecord(given, false);
     }
+
+    // Visual + audio feedback, but no advance, no reveal
+    const card = document.getElementById('question-card');
+    retriggerAnimation(card, 'pulse-wrong');
+    beep(220, 0.18);
+    buzz([30, 40, 30]);
+
+    // Brief lock + clear so they can't keep mashing the same wrong number
+    state.feedbackLock = true;
+    setTimeout(() => {
+      state.inputBuf = '';
+      renderInput();
+      state.feedbackLock = false;
+    }, 400);
+  }
+
+  // Adds a record of an answered (or skipped/timed-out) question to history.
+  function pushQuestionRecord(given, correct) {
+    state.questions.push({ ...state.current, given, correct });
+  }
+
+  // Visual treatment for the forced-wrong cases (timeout, skip).
+  function showWrongFeedback(reveal) {
+    state.feedbackLock = true;
+    state.streak = 0;
+    document.getElementById('hud-streak').textContent = 0;
+
+    const card = document.getElementById('question-card');
+    const revealEl = document.getElementById('answer-reveal');
+    retriggerAnimation(card, 'pulse-wrong');
+    if (reveal) revealEl.style.opacity = '1';
+    beep(220, 0.18);
+    buzz([30, 40, 30]);
   }
 
   function afterFeedback() {
@@ -839,6 +927,7 @@
     else if (e.key === 'Enter')       pressKey('enter');
   });
   document.getElementById('end-session').addEventListener('click', endGame);
+  document.getElementById('skip-question').addEventListener('click', handleSkip);
 
   // ============================================================
   // END GAME
