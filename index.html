@@ -2,37 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<!-- viewport-fit=cover lets us paint under the iPhone home-bar safe area -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
 <meta name="theme-color" content="#0a0e16" />
 <title>Mental Math Trainer</title>
 
-<!-- ============================================================ -->
-<!-- Tailwind via CDN — no build step. We extend its theme with    -->
-<!-- our custom "precision instrument" palette so utility classes  -->
-<!-- like bg-ink / text-amber / border-line work out of the box.   -->
-<!-- ============================================================ -->
+<!-- Tailwind CDN + custom palette -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
     theme: {
       extend: {
         colors: {
-          ink:    '#0a0e16', // page background (deep ink blue-black)
-          ink2:   '#11161f', // slightly raised surface
-          ink3:   '#161c27', // card surface
-          paper:  '#eceae3', // warm off-white text
-          muted:  '#8a8e98', // secondary text
-          line:   '#222a36', // hairline borders
-          amber:  '#f5a524', // primary accent
-          amber2: '#ffc15a', // accent highlight
-          ok:     '#4ade80', // correct (green)
-          bad:    '#ef4444', // wrong (red)
+          ink:'#0a0e16', ink2:'#11161f', ink3:'#161c27',
+          paper:'#eceae3', muted:'#8a8e98', line:'#222a36',
+          amber:'#f5a524', amber2:'#ffc15a',
+          ok:'#4ade80', bad:'#ef4444',
         },
         fontFamily: {
-          // Display serif for big numbers and headings
           serif: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
-          // Mono for equations, stats, keypad
           mono:  ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
         },
       },
@@ -40,71 +27,42 @@
   };
 </script>
 
-<!-- Google Fonts: Fraunces (display) + IBM Plex Mono -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
 <style>
-  /* ---------------------------------------------------------------- */
-  /* Base resets + safe area padding for the iPhone home bar.         */
-  /* ---------------------------------------------------------------- */
   html, body {
-    background: #0a0e16;
-    color: #eceae3;
-    min-height: 100%;
-    -webkit-tap-highlight-color: transparent; /* kill the blue tap flash on iOS */
+    background: #0a0e16; color: #eceae3; min-height: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
-    /* env(safe-area-inset-*) reads the device notch/home-bar insets */
     padding-bottom: env(safe-area-inset-bottom);
     padding-top: env(safe-area-inset-top);
   }
 
-  /* ---------------------------------------------------------------- */
-  /* Film-grain overlay — a tiny SVG noise texture tiled at low       */
-  /* opacity gives the page a subtle, expensive-looking texture.      */
-  /* ---------------------------------------------------------------- */
+  /* Film-grain + amber top glow */
   body::before {
-    content: "";
-    position: fixed; inset: 0;
-    pointer-events: none;
-    z-index: 1;
-    opacity: 0.06;
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.06;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
-
-  /* Soft amber glow at the top of the page — feels like a warm light */
   body::after {
-    content: "";
-    position: fixed; left: 50%; top: -200px;
-    width: 600px; height: 400px;
-    transform: translateX(-50%);
+    content: ""; position: fixed; left: 50%; top: -200px;
+    width: 600px; height: 400px; transform: translateX(-50%);
     background: radial-gradient(closest-side, rgba(245,165,36,0.18), rgba(245,165,36,0));
-    pointer-events: none;
-    z-index: 0;
+    pointer-events: none; z-index: 0;
   }
 
-  /* Bring screens above the grain/glow layers */
   .screen { position: relative; z-index: 2; }
-
-  /* Disable double-tap-zoom on the keypad (touch-action: manipulation) */
   .key { touch-action: manipulation; user-select: none; }
 
-  /* Blinking caret in the input display */
   .caret {
-    display: inline-block;
-    width: 2px; height: 1em;
-    background: #f5a524;
-    margin-left: 4px;
-    vertical-align: -0.15em;
+    display: inline-block; width: 2px; height: 1em;
+    background: #f5a524; margin-left: 4px; vertical-align: -0.15em;
     animation: blink 1s steps(1) infinite;
   }
   @keyframes blink { 50% { opacity: 0; } }
 
-  /* Correct / wrong animations on the question card.                 */
-  /* Trick: to re-trigger a CSS animation we remove the class, force  */
-  /* a reflow with `void el.offsetWidth`, then add it back.           */
   .pulse-correct { animation: pulseOk 600ms ease-out; }
   .pulse-wrong   { animation: shakeBad 500ms ease-out; }
   @keyframes pulseOk {
@@ -120,55 +78,55 @@
     80%      { transform: translateX(5px); }
   }
 
-  /* Hairline scrollbar for the review list */
   .scroll-thin::-webkit-scrollbar { width: 6px; }
   .scroll-thin::-webkit-scrollbar-thumb { background: #222a36; border-radius: 3px; }
+  .scroll-thin::-webkit-scrollbar-track { background: transparent; }
 
-  /* Chip default + selected states (config screen) */
   .chip {
-    border: 1px solid #222a36;
-    background: #11161f;
-    color: #eceae3;
+    border: 1px solid #222a36; background: #11161f; color: #eceae3;
     transition: all 120ms ease;
   }
   .chip.selected {
-    border-color: #f5a524;
-    background: rgba(245,165,36,0.12);
-    color: #ffc15a;
+    border-color: #f5a524; background: rgba(245,165,36,0.12); color: #ffc15a;
     box-shadow: inset 0 0 0 1px rgba(245,165,36,0.4);
   }
 
-  /* Number-grid cells (operand pickers) */
   .num-cell {
-    border: 1px solid #222a36;
-    background: #11161f;
-    color: #eceae3;
+    border: 1px solid #222a36; background: #11161f; color: #eceae3;
     transition: all 100ms ease;
   }
   .num-cell.selected {
-    border-color: #f5a524;
-    background: rgba(245,165,36,0.15);
-    color: #ffc15a;
+    border-color: #f5a524; background: rgba(245,165,36,0.15); color: #ffc15a;
   }
 
-  /* Keypad key */
-  .key {
-    background: #161c27;
+  /* ─── NEW: scrollable operand grid container ─────────────────
+     A fixed-height box with overflow-y:auto.
+     The mask-image fades the bottom edge as a visual "more below" cue.
+     JS toggles .at-bottom to remove the fade once you've reached the end. */
+  .num-grid-scroll {
+    max-height: 168px;
+    overflow-y: auto;
     border: 1px solid #222a36;
-    color: #eceae3;
+    border-radius: 6px;
+    padding: 8px;
+    background: #0d1219;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 85%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 0, #000 85%, transparent 100%);
+  }
+  .num-grid-scroll.at-bottom {
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+
+  .key {
+    background: #161c27; border: 1px solid #222a36; color: #eceae3;
     transition: transform 60ms ease, background 100ms ease;
   }
   .key:active { transform: scale(0.96); background: #1d2533; }
 
-  /* Gauge stroke transition — smooth dashoffset interpolation */
   .gauge-arc { transition: stroke-dashoffset 100ms linear, stroke 200ms ease; }
+  .gauge-arc.danger { filter: drop-shadow(0 0 6px rgba(239,68,68,0.55)); }
 
-  /* When the timer goes red, add a glow filter to the arc */
-  .gauge-arc.danger {
-    filter: drop-shadow(0 0 6px rgba(239,68,68,0.55));
-  }
-
-  /* Utility: hide initially-inactive screens */
   .hidden-screen { display: none !important; }
 </style>
 </head>
@@ -185,26 +143,21 @@
     <p class="text-muted text-sm mt-1 tracking-wider uppercase">A Precision Instrument</p>
   </header>
 
-  <!-- ─── 4.1 Session length ──────────────────────────────────────────── -->
+  <!-- Session length -->
   <div class="w-full mb-6">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-paper text-sm tracking-widest uppercase">Session</h2>
-      <!-- Mode toggle between Timed and Fixed -->
       <div class="flex text-xs">
         <button data-mode="timed" class="mode-btn chip selected px-3 py-1 rounded-l">Timed</button>
         <button data-mode="fixed" class="mode-btn chip px-3 py-1 rounded-r border-l-0">Fixed count</button>
       </div>
     </div>
-
-    <!-- Timed values -->
     <div id="timed-options" class="grid grid-cols-4 gap-2">
       <button data-sec="30"  class="session-val chip selected rounded py-2 text-sm">30s</button>
       <button data-sec="60"  class="session-val chip rounded py-2 text-sm">60s</button>
       <button data-sec="120" class="session-val chip rounded py-2 text-sm">2m</button>
       <button data-sec="300" class="session-val chip rounded py-2 text-sm">5m</button>
     </div>
-
-    <!-- Fixed-count values (hidden until mode = fixed) -->
     <div id="fixed-options" class="grid grid-cols-3 gap-2 hidden">
       <button data-count="10" class="count-val chip selected rounded py-2 text-sm">10 Q</button>
       <button data-count="20" class="count-val chip rounded py-2 text-sm">20 Q</button>
@@ -212,7 +165,7 @@
     </div>
   </div>
 
-  <!-- ─── 4.2 Per-question timer ─────────────────────────────────────── -->
+  <!-- Per-question timer -->
   <div class="w-full mb-6">
     <h2 class="text-paper text-sm tracking-widest uppercase mb-3">Per-question timer</h2>
     <div class="grid grid-cols-4 gap-2">
@@ -223,7 +176,7 @@
     </div>
   </div>
 
-  <!-- ─── 4.3 Operations ─────────────────────────────────────────────── -->
+  <!-- Operations -->
   <div class="w-full mb-6">
     <h2 class="text-paper text-sm tracking-widest uppercase mb-3">Operations</h2>
     <div class="grid grid-cols-4 gap-2">
@@ -234,49 +187,57 @@
     </div>
   </div>
 
-  <!-- ─── 4.4 Operand A grid (numbers 1–12) ──────────────────────────── -->
+  <!-- ─── Operand A (1–50, scrollable, with presets) ─────────────────── -->
   <div class="w-full mb-5">
-    <div class="flex items-center justify-between mb-2">
+    <div class="flex items-center justify-between mb-2 flex-wrap gap-y-1">
       <h2 class="text-paper text-sm tracking-widest uppercase">Operand A</h2>
-      <div class="text-xs flex gap-2">
-        <button data-bulk="A-all"   class="text-amber hover:underline">Select all</button>
+      <div class="text-xs flex gap-2 items-center">
+        <span id="count-A" class="text-muted">12 picked</span>
+        <span class="text-line">·</span>
+        <button data-bulk="A-12"    class="text-amber hover:underline">1–12</button>
+        <span class="text-line">·</span>
+        <button data-bulk="A-all"   class="text-amber hover:underline">All</button>
         <span class="text-line">·</span>
         <button data-bulk="A-clear" class="text-muted hover:text-paper">Clear</button>
       </div>
     </div>
-    <!-- 6 columns × 2 rows = 12 cells -->
-    <div id="grid-A" class="grid grid-cols-6 gap-2"></div>
+    <div class="num-grid-scroll scroll-thin">
+      <div id="grid-A" class="grid grid-cols-6 gap-2"></div>
+    </div>
   </div>
 
-  <!-- ─── 4.4 Operand B grid (numbers 1–12) ──────────────────────────── -->
+  <!-- ─── Operand B (1–50, scrollable, with presets) ─────────────────── -->
   <div class="w-full mb-6">
-    <div class="flex items-center justify-between mb-2">
+    <div class="flex items-center justify-between mb-2 flex-wrap gap-y-1">
       <h2 class="text-paper text-sm tracking-widest uppercase">Operand B</h2>
-      <div class="text-xs flex gap-2">
-        <button data-bulk="B-all"   class="text-amber hover:underline">Select all</button>
+      <div class="text-xs flex gap-2 items-center">
+        <span id="count-B" class="text-muted">12 picked</span>
+        <span class="text-line">·</span>
+        <button data-bulk="B-12"    class="text-amber hover:underline">1–12</button>
+        <span class="text-line">·</span>
+        <button data-bulk="B-all"   class="text-amber hover:underline">All</button>
         <span class="text-line">·</span>
         <button data-bulk="B-clear" class="text-muted hover:text-paper">Clear</button>
       </div>
     </div>
-    <div id="grid-B" class="grid grid-cols-6 gap-2"></div>
+    <div class="num-grid-scroll scroll-thin">
+      <div id="grid-B" class="grid grid-cols-6 gap-2"></div>
+    </div>
   </div>
 
-  <!-- ─── 4.5 Feedback toggles ───────────────────────────────────────── -->
+  <!-- Feedback toggles -->
   <div class="w-full mb-6 grid grid-cols-2 gap-3">
     <button id="toggle-sound"   class="chip selected rounded py-2 text-sm">🔊 Sound: On</button>
     <button id="toggle-vibrate" class="chip selected rounded py-2 text-sm">📳 Vibrate: On</button>
   </div>
 
-  <!-- ─── 4.6 Live preview ───────────────────────────────────────────── -->
   <p id="preview" class="text-muted text-sm mb-4">Example: 7 × 8</p>
 
-  <!-- ─── 4.7 Start ──────────────────────────────────────────────────── -->
   <button id="start-btn"
           class="w-full bg-amber text-ink font-semibold tracking-wider uppercase py-4 rounded text-base
                  hover:bg-amber2 transition disabled:opacity-40 disabled:cursor-not-allowed">
     Begin Session
   </button>
-
 </section>
 
 
@@ -285,7 +246,6 @@
 <!-- ====================================================================== -->
 <section id="screen-game" class="screen hidden-screen min-h-screen flex-col items-center px-5 py-6 max-w-xl mx-auto">
 
-  <!-- 5.1.1 Top progress bar — visible only when per-question timer is on -->
   <div id="top-progress-wrap" class="w-full mb-4 hidden">
     <div class="flex justify-between text-[10px] tracking-widest uppercase text-muted mb-1">
       <span id="top-progress-label">Session</span>
@@ -296,47 +256,36 @@
     </div>
   </div>
 
-  <!-- 5.1.2 HUD row -->
   <div class="w-full flex justify-between text-xs tracking-widest uppercase text-muted mb-6">
     <span>Streak <span id="hud-streak" class="text-paper">0</span></span>
     <span><span id="hud-correct" class="text-paper">0</span> Correct</span>
   </div>
 
-  <!-- 5.1.3 Circular gauge -->
   <div class="relative w-48 h-48 mb-6">
     <svg viewBox="0 0 120 120" class="w-full h-full -rotate-90">
-      <!-- Track circle -->
       <circle cx="60" cy="60" r="54" fill="none" stroke="#222a36" stroke-width="6" />
-      <!-- Animated arc — we control progress via stroke-dashoffset -->
       <circle id="gauge-arc" class="gauge-arc"
               cx="60" cy="60" r="54" fill="none"
               stroke="#f5a524" stroke-width="6" stroke-linecap="round"
               stroke-dasharray="339.292" stroke-dashoffset="0" />
     </svg>
-    <!-- Center label -->
     <div class="absolute inset-0 flex flex-col items-center justify-center">
       <span id="gauge-value" class="font-serif text-5xl text-paper">30</span>
       <span id="gauge-unit"  class="text-[10px] tracking-widest uppercase text-muted mt-1">Seconds</span>
     </div>
   </div>
 
-  <!-- 5.1.4 Question card -->
   <div id="question-card"
        class="w-full bg-ink3 border border-line rounded-lg py-6 mb-4 text-center relative">
-    <div id="question-text" class="font-mono text-4xl text-paper tracking-wider">
-      <!-- e.g.  7 <span class="text-amber">×</span> 8 -->
-    </div>
-    <!-- Correct answer reveal (only visible briefly on wrong answers) -->
+    <div id="question-text" class="font-mono text-4xl text-paper tracking-wider"></div>
     <div id="answer-reveal" class="text-bad text-sm mt-2 opacity-0 transition-opacity">= ?</div>
   </div>
 
-  <!-- 5.1.5 Input display (a div, NOT an input → no mobile keyboard pops up) -->
   <div id="input-display"
        class="w-full text-center font-mono text-3xl text-paper py-3 mb-4 min-h-[3rem]">
     <span id="input-value" class="text-muted">—</span><span class="caret"></span>
   </div>
 
-  <!-- 5.1.6 Custom numeric keypad — 3×4 grid -->
   <div class="w-full grid grid-cols-3 gap-2 mb-4">
     <button class="key rounded py-4 text-2xl" data-k="7">7</button>
     <button class="key rounded py-4 text-2xl" data-k="8">8</button>
@@ -352,7 +301,6 @@
     <button class="key rounded py-4 text-2xl text-amber" data-k="enter">↵</button>
   </div>
 
-  <!-- 5.1.7 End-session link -->
   <button id="end-session" class="text-muted text-xs tracking-widest uppercase hover:text-paper">
     End session
   </button>
@@ -364,7 +312,6 @@
 <!-- ====================================================================== -->
 <section id="screen-results" class="screen hidden-screen min-h-screen flex-col items-center px-5 py-8 max-w-xl mx-auto">
 
-  <!-- 6.1 Header -->
   <header class="w-full text-center mb-2">
     <div id="pb-badge"
          class="hidden inline-block text-[10px] tracking-widest uppercase
@@ -376,7 +323,6 @@
     <p id="result-config" class="text-muted text-xs mt-2 tracking-wide"></p>
   </header>
 
-  <!-- 6.2 Stats grid (2 cols × 3 rows) -->
   <div class="w-full grid grid-cols-2 gap-2 my-6">
     <div class="bg-ink3 border border-line rounded p-3">
       <div class="text-[10px] tracking-widest uppercase text-muted">Accuracy</div>
@@ -404,25 +350,20 @@
     </div>
   </div>
 
-  <!-- 6.3 History + sparkline -->
   <div class="w-full mb-6">
     <div class="flex justify-between items-baseline mb-2">
       <h2 class="text-paper text-sm tracking-widest uppercase">History</h2>
       <button id="clear-history" class="text-muted text-xs hover:text-bad">Clear</button>
     </div>
-    <!-- Inline SVG sparkline -->
     <svg id="sparkline" viewBox="0 0 300 60" class="w-full h-14 bg-ink3 border border-line rounded mb-2"></svg>
-    <!-- History list -->
     <div id="history-list" class="space-y-1 max-h-64 overflow-y-auto scroll-thin"></div>
   </div>
 
-  <!-- 6.4 Review wrong answers -->
   <div class="w-full mb-6">
     <h2 class="text-paper text-sm tracking-widest uppercase mb-2">Review</h2>
     <div id="review-list" class="space-y-1 max-h-64 overflow-y-auto scroll-thin"></div>
   </div>
 
-  <!-- 6.5 Play Again -->
   <button id="play-again"
           class="w-full bg-amber text-ink font-semibold tracking-wider uppercase py-4 rounded text-base hover:bg-amber2 transition">
     Play Again
@@ -430,69 +371,68 @@
 </section>
 
 
-<!-- ====================================================================== -->
-<!-- THE BRAIN — vanilla JS                                                 -->
-<!-- ====================================================================== -->
 <script>
 (() => {
   'use strict';
 
   // ============================================================
-  // STATE — all mutable session/config state lives here.
+  // CONFIG CONSTANTS
+  // Change MAX_OPERAND if you ever want to drill higher numbers.
+  // Everything else (grid build, presets, scrolling) adapts.
+  // ============================================================
+  const MAX_OPERAND = 50;
+
+  // Builds a Set of 1..n for use as defaults / presets.
+  const rangeSet = (n) => new Set(Array.from({ length: n }, (_, i) => i + 1));
+
+  // ============================================================
+  // STATE
   // ============================================================
   const state = {
-    // Config
-    mode: 'timed',                  // 'timed' | 'fixed'
-    sessionSec: 30,                 // active when mode='timed'
-    sessionCount: 10,               // active when mode='fixed'
-    perQuestionSec: 0,              // 0 = off
-    ops: new Set(['+', '×']),       // default ops
-    opsA: new Set([1,2,3,4,5,6,7,8,9,10,11,12]),
-    opsB: new Set([1,2,3,4,5,6,7,8,9,10,11,12]),
+    mode: 'timed',
+    sessionSec: 30,
+    sessionCount: 10,
+    perQuestionSec: 0,
+    ops: new Set(['+', '×']),
+    opsA: rangeSet(12),     // default selection is still 1..12 — familiar
+    opsB: rangeSet(12),
     sound: true,
     vibrate: true,
 
-    // Runtime
-    questions: [],                  // history of asked questions this session
-    current: null,                  // current question object
-    inputBuf: '',                   // typed digits
+    questions: [],
+    current: null,
+    inputBuf: '',
     correct: 0,
     streak: 0,
     bestStreak: 0,
     startedAt: 0,
-    sessionEndsAt: 0,               // for timed mode
-    pqEndsAt: 0,                    // per-question deadline (ms)
-    pqPausedRemaining: null,        // ms remaining when paused (during feedback)
-    timer: null,                    // setInterval handle
-    feedbackLock: false,            // blocks input during feedback animation
+    sessionEndsAt: 0,
+    pqEndsAt: 0,
+    pqPausedRemaining: null,
+    timer: null,
+    feedbackLock: false,
   };
 
   // ============================================================
-  // SAFE localStorage helpers — wrapped so sandboxed iframes
-  // that block storage don't crash the app.
+  // SAFE localStorage helpers
   // ============================================================
   const store = {
     get(k, fallback) {
       try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; }
       catch { return fallback; }
     },
-    set(k, v) {
-      try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
-    },
-    del(k) {
-      try { localStorage.removeItem(k); } catch {}
-    }
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k)    { try { localStorage.removeItem(k); } catch {} }
   };
 
   // ============================================================
-  // SCREEN ROUTER — show one section, hide the others.
+  // SCREEN ROUTER
   // ============================================================
   function showScreen(id) {
     ['screen-config', 'screen-game', 'screen-results'].forEach(s => {
       const el = document.getElementById(s);
       if (s === id) {
         el.classList.remove('hidden-screen');
-        // Game & results use flex column layout
         el.style.display = 'flex';
       } else {
         el.classList.add('hidden-screen');
@@ -502,39 +442,55 @@
   }
 
   // ============================================================
-  // BUILD operand number grids (1–12) on first load.
+  // Build the operand grid (1..MAX_OPERAND).
+  // The wrapping .num-grid-scroll container handles overflow.
   // ============================================================
-  function buildNumberGrid(containerId, set) {
+  function buildNumberGrid(containerId, set, label) {
     const wrap = document.getElementById(containerId);
     wrap.innerHTML = '';
-    for (let n = 1; n <= 12; n++) {
+    for (let n = 1; n <= MAX_OPERAND; n++) {
       const b = document.createElement('button');
       b.textContent = n;
       b.dataset.n = n;
-      // Default = all selected
-      b.className = 'num-cell rounded py-2 text-sm selected';
+      b.className = 'num-cell rounded py-2 text-sm' + (set.has(n) ? ' selected' : '');
       wrap.appendChild(b);
     }
-    // Single delegated handler per grid
+
+    // One delegated click handler per grid (efficient + simple)
     wrap.addEventListener('click', (e) => {
       const cell = e.target.closest('.num-cell');
       if (!cell) return;
       const n = +cell.dataset.n;
       if (set.has(n)) { set.delete(n); cell.classList.remove('selected'); }
       else            { set.add(n);    cell.classList.add('selected'); }
+      updateCount(label, set);
       updatePreview();
       validateStart();
     });
+
+    // Drop the bottom fade-mask once the user has scrolled to the bottom
+    const scrollWrap = wrap.parentElement; // the .num-grid-scroll div
+    scrollWrap.addEventListener('scroll', () => {
+      const nearBottom = scrollWrap.scrollHeight - scrollWrap.scrollTop - scrollWrap.clientHeight < 12;
+      scrollWrap.classList.toggle('at-bottom', nearBottom);
+    });
+
+    updateCount(label, set);
+  }
+
+  // Update the "N picked" badge in each operand header
+  function updateCount(label, set) {
+    const el = document.getElementById(`count-${label}`);
+    if (el) el.textContent = `${set.size} picked`;
   }
 
   // ============================================================
-  // CONFIG screen — wire up all the buttons.
+  // CONFIG screen wiring
   // ============================================================
   function initConfig() {
-    buildNumberGrid('grid-A', state.opsA);
-    buildNumberGrid('grid-B', state.opsB);
+    buildNumberGrid('grid-A', state.opsA, 'A');
+    buildNumberGrid('grid-B', state.opsB, 'B');
 
-    // Mode toggle (timed / fixed)
     document.querySelectorAll('.mode-btn').forEach(b => {
       b.addEventListener('click', () => {
         state.mode = b.dataset.mode;
@@ -546,7 +502,6 @@
       });
     });
 
-    // Timed session length
     document.querySelectorAll('.session-val').forEach(b => {
       b.addEventListener('click', () => {
         state.sessionSec = +b.dataset.sec;
@@ -554,8 +509,6 @@
         b.classList.add('selected');
       });
     });
-
-    // Fixed-count length
     document.querySelectorAll('.count-val').forEach(b => {
       b.addEventListener('click', () => {
         state.sessionCount = +b.dataset.count;
@@ -564,7 +517,6 @@
       });
     });
 
-    // Per-question timer
     document.querySelectorAll('.pq-val').forEach(b => {
       b.addEventListener('click', () => {
         state.perQuestionSec = +b.dataset.pq;
@@ -573,7 +525,6 @@
       });
     });
 
-    // Operations multi-select
     document.querySelectorAll('.op-val').forEach(b => {
       b.addEventListener('click', () => {
         const op = b.dataset.op;
@@ -584,27 +535,39 @@
       });
     });
 
-    // Bulk "Select all" / "Clear" buttons under each operand grid
+    // ─── Bulk actions: 1–12 preset / All / Clear ────────────────
     document.querySelectorAll('[data-bulk]').forEach(b => {
       b.addEventListener('click', () => {
         const [which, action] = b.dataset.bulk.split('-');
         const set  = which === 'A' ? state.opsA : state.opsB;
         const grid = document.getElementById(`grid-${which}`);
+
+        // Compute the new selection
+        let newSet;
+        if      (action === 'all')   newSet = rangeSet(MAX_OPERAND);
+        else if (action === '12')    newSet = rangeSet(12);
+        else                         newSet = new Set();  // 'clear'
+
+        // Sync the state Set
         set.clear();
+        newSet.forEach(n => set.add(n));
+
+        // Sync the DOM cells
         grid.querySelectorAll('.num-cell').forEach(cell => {
-          if (action === 'all') {
-            set.add(+cell.dataset.n);
-            cell.classList.add('selected');
-          } else {
-            cell.classList.remove('selected');
-          }
+          cell.classList.toggle('selected', set.has(+cell.dataset.n));
         });
+
+        // Scroll to top for presets that focus on lower numbers
+        if (action === '12' || action === 'clear') {
+          grid.parentElement.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        updateCount(which, set);
         updatePreview();
         validateStart();
       });
     });
 
-    // Sound / vibrate toggles
     document.getElementById('toggle-sound').addEventListener('click', (e) => {
       state.sound = !state.sound;
       e.currentTarget.textContent = `🔊 Sound: ${state.sound ? 'On' : 'Off'}`;
@@ -616,14 +579,12 @@
       e.currentTarget.classList.toggle('selected', state.vibrate);
     });
 
-    // Start
     document.getElementById('start-btn').addEventListener('click', startGame);
-
     updatePreview();
   }
 
   // ============================================================
-  // PREVIEW — generates one example question reflecting settings.
+  // PREVIEW
   // ============================================================
   function updatePreview() {
     const q = generateQuestion();
@@ -632,7 +593,6 @@
     el.textContent = `Example: ${q.a} ${q.op} ${q.b}`;
   }
 
-  // Enable/disable Start button based on whether settings are valid.
   function validateStart() {
     const btn = document.getElementById('start-btn');
     btn.disabled = state.ops.size === 0 || state.opsA.size === 0 || state.opsB.size === 0;
@@ -640,7 +600,6 @@
 
   // ============================================================
   // QUESTION GENERATOR
-  // Picks an op, an A and B from selected sets, applies safeguards.
   // ============================================================
   function pickRandom(set) {
     const arr = [...set];
@@ -649,7 +608,6 @@
 
   function generateQuestion() {
     if (state.ops.size === 0 || state.opsA.size === 0 || state.opsB.size === 0) return null;
-
     const opsArr = [...state.ops];
     const op = opsArr[Math.floor(Math.random() * opsArr.length)];
     let a = pickRandom(state.opsA);
@@ -657,28 +615,19 @@
     let answer;
 
     switch (op) {
-      case '+':
-        answer = a + b;
-        break;
+      case '+': answer = a + b; break;
       case '−':
-        // Safeguard: ensure a >= b so the answer is non-negative.
-        if (a < b) [a, b] = [b, a];
+        if (a < b) [a, b] = [b, a];   // keep result non-negative
         answer = a - b;
         break;
-      case '×':
-        answer = a * b;
-        break;
-      case '÷':
-        // Build divisions backwards: answer = a / b ⇒ dividend = b × quotient.
-        // Here we treat the picked "a" as the QUOTIENT and "b" as the DIVISOR,
-        // so the displayed equation becomes (a*b) ÷ b = a.
-        // We must guard against b = 0 (1..12 range, so safe).
-        {
-          const quotient = a;
-          const divisor  = b;
-          const dividend = quotient * divisor;
-          return { a: dividend, b: divisor, op, answer: quotient };
-        }
+      case '×': answer = a * b; break;
+      case '÷': {
+        // Build divisions backwards: dividend = quotient × divisor
+        const quotient = a;
+        const divisor  = b;
+        const dividend = quotient * divisor;
+        return { a: dividend, b: divisor, op, answer: quotient };
+      }
     }
     return { a, b, op, answer };
   }
@@ -687,7 +636,6 @@
   // GAME LOOP
   // ============================================================
   function startGame() {
-    // Reset runtime state
     state.questions = [];
     state.current   = null;
     state.inputBuf  = '';
@@ -698,13 +646,9 @@
 
     const now = Date.now();
     state.startedAt = now;
-    if (state.mode === 'timed') {
-      state.sessionEndsAt = now + state.sessionSec * 1000;
-    }
+    if (state.mode === 'timed') state.sessionEndsAt = now + state.sessionSec * 1000;
 
-    // Top progress bar shows whenever per-question timer is on
     document.getElementById('top-progress-wrap').classList.toggle('hidden', state.perQuestionSec === 0);
-
     showScreen('screen-game');
     nextQuestion();
     startTimerLoop();
@@ -715,25 +659,17 @@
     state.inputBuf = '';
     renderInput();
 
-    // Render equation with amber operator
     const q = state.current;
     document.getElementById('question-text').innerHTML =
       `${q.a} <span class="text-amber">${q.op}</span> ${q.b}`;
 
-    // Hide answer reveal
     const reveal = document.getElementById('answer-reveal');
     reveal.style.opacity = '0';
     reveal.textContent = `= ${q.answer}`;
 
-    // Reset per-question timer
-    if (state.perQuestionSec > 0) {
-      state.pqEndsAt = Date.now() + state.perQuestionSec * 1000;
-    } else {
-      state.pqEndsAt = 0;
-    }
+    state.pqEndsAt = state.perQuestionSec > 0 ? Date.now() + state.perQuestionSec * 1000 : 0;
   }
 
-  // ----- Timer loop drives session timer, per-question timer, and gauge.
   function startTimerLoop() {
     clearInterval(state.timer);
     state.timer = setInterval(tick, 100);
@@ -742,29 +678,16 @@
 
   function tick() {
     const now = Date.now();
+    if (state.mode === 'timed' && now >= state.sessionEndsAt) return endGame();
+    if (state.perQuestionSec > 0 && !state.feedbackLock && now >= state.pqEndsAt) return handleTimeout();
 
-    // Session-end check (timed mode)
-    if (state.mode === 'timed' && now >= state.sessionEndsAt) {
-      return endGame();
-    }
-
-    // Per-question timeout
-    if (state.perQuestionSec > 0 && !state.feedbackLock && now >= state.pqEndsAt) {
-      return handleTimeout();
-    }
-
-    // ---- Update gauge ----
-    const arc = document.getElementById('gauge-arc');
-    const val = document.getElementById('gauge-value');
+    const arc  = document.getElementById('gauge-arc');
+    const val  = document.getElementById('gauge-value');
     const unit = document.getElementById('gauge-unit');
-    const C = 339.292; // 2π × 54
+    const C = 339.292;
 
-    let progress;       // 0..1, where 1 = full arc
-    let display;        // big number in middle
-    let unitText;       // small label
-
+    let progress, display, unitText;
     if (state.perQuestionSec > 0) {
-      // Per-Q timer drives the gauge
       const remaining = Math.max(0, state.pqEndsAt - now);
       progress = remaining / (state.perQuestionSec * 1000);
       display = Math.ceil(remaining / 1000);
@@ -775,7 +698,6 @@
       display = formatTime(remaining);
       unitText = 'Session';
     } else {
-      // Fixed-count mode → gauge shows question N of total
       const done = state.questions.length;
       progress = 1 - (done / state.sessionCount);
       display = `${done}/${state.sessionCount}`;
@@ -786,7 +708,6 @@
     val.textContent = display;
     unit.textContent = unitText;
 
-    // Red danger zone in last 25%
     if (progress <= 0.25 && progress > 0) {
       arc.setAttribute('stroke', '#ef4444');
       arc.classList.add('danger');
@@ -795,7 +716,6 @@
       arc.classList.remove('danger');
     }
 
-    // ---- Top progress bar (session position, when per-Q timer is on) ----
     if (state.perQuestionSec > 0) {
       const label = document.getElementById('top-progress-label');
       const value = document.getElementById('top-progress-value');
@@ -822,63 +742,30 @@
   }
 
   // ============================================================
-  // INPUT HANDLING
+  // INPUT
   // ============================================================
   function renderInput() {
     const el = document.getElementById('input-value');
-    if (state.inputBuf === '') {
-      el.textContent = '—';
-      el.className = 'text-muted';
-    } else {
-      el.textContent = state.inputBuf;
-      el.className = 'text-paper';
-    }
+    if (state.inputBuf === '') { el.textContent = '—'; el.className = 'text-muted'; }
+    else                       { el.textContent = state.inputBuf; el.className = 'text-paper'; }
   }
 
   function pressKey(k) {
     if (state.feedbackLock) return;
-
-    if (k === 'back') {
-      state.inputBuf = state.inputBuf.slice(0, -1);
-    } else if (k === 'enter') {
-      if (state.inputBuf !== '') submit();
-      return;
-    } else {
-      // Digit — append (cap at 6 digits)
-      if (state.inputBuf.length < 6) state.inputBuf += k;
-    }
+    if (k === 'back') state.inputBuf = state.inputBuf.slice(0, -1);
+    else if (k === 'enter') { if (state.inputBuf !== '') submit(); return; }
+    else if (state.inputBuf.length < 6) state.inputBuf += k;
     renderInput();
-
-    // Auto-submit on exact match (handy on mobile)
-    if (state.inputBuf !== '' && +state.inputBuf === state.current.answer) {
-      submit();
-    }
+    if (state.inputBuf !== '' && +state.inputBuf === state.current.answer) submit();
   }
 
-  function submit() {
-    const given = +state.inputBuf;
-    const correct = given === state.current.answer;
-    recordAnswer(given, correct);
-  }
-
-  function handleTimeout() {
-    // Treated as wrong, with given=null
-    recordAnswer(null, false);
-  }
+  function submit()       { recordAnswer(+state.inputBuf, +state.inputBuf === state.current.answer); }
+  function handleTimeout(){ recordAnswer(null, false); }
 
   function recordAnswer(given, correct) {
     state.feedbackLock = true;
-
-    // Pause per-Q timer during feedback
-    if (state.perQuestionSec > 0) {
-      state.pqPausedRemaining = Math.max(0, state.pqEndsAt - Date.now());
-    }
-
-    state.questions.push({
-      ...state.current,
-      given,
-      correct,
-    });
+    if (state.perQuestionSec > 0) state.pqPausedRemaining = Math.max(0, state.pqEndsAt - Date.now());
+    state.questions.push({ ...state.current, given, correct });
 
     const card = document.getElementById('question-card');
     const reveal = document.getElementById('answer-reveal');
@@ -889,37 +776,25 @@
       if (state.streak > state.bestStreak) state.bestStreak = state.streak;
       document.getElementById('hud-correct').textContent = state.correct;
       document.getElementById('hud-streak').textContent  = state.streak;
-
       retriggerAnimation(card, 'pulse-correct');
-      beep(880, 0.08);
-      buzz(15);
-
+      beep(880, 0.08); buzz(15);
       setTimeout(afterFeedback, 200);
     } else {
       state.streak = 0;
       document.getElementById('hud-streak').textContent = 0;
-
       retriggerAnimation(card, 'pulse-wrong');
       reveal.style.opacity = '1';
-      beep(220, 0.18);
-      buzz([30, 40, 30]);
-
+      beep(220, 0.18); buzz([30, 40, 30]);
       setTimeout(afterFeedback, 850);
     }
   }
 
   function afterFeedback() {
     state.feedbackLock = false;
-
-    // Fixed-count completion?
-    if (state.mode === 'fixed' && state.questions.length >= state.sessionCount) {
-      return endGame();
-    }
-    // (Timed mode is ended in tick() when session time runs out.)
+    if (state.mode === 'fixed' && state.questions.length >= state.sessionCount) return endGame();
     nextQuestion();
   }
 
-  // Trick to replay a CSS animation: remove class, force reflow, re-add.
   function retriggerAnimation(el, cls) {
     el.classList.remove(cls);
     void el.offsetWidth;
@@ -927,7 +802,7 @@
   }
 
   // ============================================================
-  // FEEDBACK: sound + vibration
+  // SOUND + VIBRATION
   // ============================================================
   let audioCtx = null;
   function beep(freq, dur) {
@@ -951,30 +826,25 @@
   }
 
   // ============================================================
-  // KEYPAD wiring (delegated) + desktop keyboard support
+  // KEYPAD + KEYBOARD
   // ============================================================
   document.addEventListener('click', (e) => {
     const key = e.target.closest('.key');
     if (key) pressKey(key.dataset.k);
   });
-
   document.addEventListener('keydown', (e) => {
-    // Only when game screen is visible
     if (document.getElementById('screen-game').classList.contains('hidden-screen')) return;
     if (e.key >= '0' && e.key <= '9') pressKey(e.key);
     else if (e.key === 'Backspace')   pressKey('back');
     else if (e.key === 'Enter')       pressKey('enter');
   });
-
-  // End-session link
   document.getElementById('end-session').addEventListener('click', endGame);
 
   // ============================================================
-  // END GAME → compute stats, persist history, render results
+  // END GAME
   // ============================================================
   function endGame() {
     clearInterval(state.timer);
-
     const endedAt = Date.now();
     const durationMs = endedAt - state.startedAt;
     const attempted = state.questions.length;
@@ -982,7 +852,6 @@
     const avgMs = attempted ? Math.round(durationMs / attempted) : 0;
     const cpm = durationMs ? Math.round((state.correct / (durationMs / 60000)) * 10) / 10 : 0;
 
-    // Build session-summary object per spec §7
     const summary = {
       date: new Date(endedAt).toISOString(),
       score: state.correct,
@@ -999,12 +868,10 @@
       operandB: [...state.opsB].sort((a,b)=>a-b),
     };
 
-    // Personal best check (compare against history before saving)
     const history = store.get('mm_history', []);
     const prevBest = history.reduce((m, h) => Math.max(m, h.score || 0), 0);
     const isPB = state.correct > prevBest;
 
-    // Save (newest first, capped at 50)
     history.unshift(summary);
     if (history.length > 50) history.length = 50;
     store.set('mm_history', history);
@@ -1021,12 +888,8 @@
     document.getElementById('result-score').textContent   = s.score;
     document.getElementById('result-subtext').textContent = `correct of ${s.attempted}`;
     document.getElementById('pb-badge').classList.toggle('hidden', !isPB);
+    document.getElementById('result-config').textContent  = configSummary(s);
 
-    // Config summary line
-    document.getElementById('result-config').textContent =
-      `${configSummary(s)}`;
-
-    // Stats grid
     document.getElementById('stat-accuracy').textContent  = `${s.accuracy}%`;
     document.getElementById('stat-time').textContent      = `${Math.round(durationMs/1000)}s`;
     document.getElementById('stat-avg').textContent       = `${(avgMs/1000).toFixed(1)}s`;
@@ -1034,10 +897,9 @@
     document.getElementById('stat-streak').textContent    = s.bestStreak;
     document.getElementById('stat-questions').textContent = s.attempted;
 
-    // History list (last ~20)
     const hList = document.getElementById('history-list');
     hList.innerHTML = '';
-    history.slice(0, 20).forEach((h, i) => {
+    history.slice(0, 20).forEach((h) => {
       const row = document.createElement('div');
       row.className = 'flex items-center justify-between text-xs bg-ink3 border border-line rounded px-3 py-2';
       row.innerHTML = `
@@ -1052,10 +914,8 @@
       hList.appendChild(row);
     });
 
-    // Sparkline — scores over last 20 (oldest left → newest right)
     drawSparkline(history.slice(0, 20).reverse().map(h => h.score));
 
-    // Review wrong/timeout questions
     const rList = document.getElementById('review-list');
     rList.innerHTML = '';
     state.questions.filter(q => !q.correct).forEach(q => {
@@ -1074,7 +934,6 @@
     }
   }
 
-  // Pretty date: "today 14:32", "yesterday", "3 days ago", else date.
   function relativeDate(iso) {
     const d = new Date(iso);
     const now = new Date();
@@ -1091,21 +950,18 @@
     const sess = s.mode === 'timed' ? `${s.sessionSec}s` : `${s.sessionCount}Q`;
     const pq   = s.perQuestionSec ? ` · ${s.perQuestionSec}s/Q` : '';
     const ops  = s.ops.join('');
-    // Compact operand display: range when contiguous, else list
     return `${sess}${pq} · ${ops} · A:${compactSet(s.operandA)} · B:${compactSet(s.operandB)}`;
   }
 
   function compactSet(arr) {
     if (!arr || arr.length === 0) return '—';
     const sorted = [...arr].sort((a,b)=>a-b);
-    // Detect a contiguous range
     if (sorted.length > 1 && sorted[sorted.length-1] - sorted[0] === sorted.length - 1) {
       return `{${sorted[0]}–${sorted[sorted.length-1]}}`;
     }
     return `{${sorted.join(',')}}`;
   }
 
-  // Draw a minimal SVG sparkline of scores.
   function drawSparkline(scores) {
     const svg = document.getElementById('sparkline');
     svg.innerHTML = '';
@@ -1130,17 +986,14 @@
     `;
   }
 
-  // Clear history
   document.getElementById('clear-history').addEventListener('click', () => {
     if (!confirm('Clear all session history?')) return;
-    store.del('mm_history');
-    store.del('mm_best');
+    store.del('mm_history'); store.del('mm_best');
     document.getElementById('history-list').innerHTML =
       '<div class="text-muted text-xs text-center py-3">No history yet.</div>';
     drawSparkline([]);
   });
 
-  // Play Again — return to config, keeping previous selections.
   document.getElementById('play-again').addEventListener('click', () => {
     showScreen('screen-config');
     updatePreview();
